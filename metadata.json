@@ -1,0 +1,8 @@
+{
+  "name": "EcoSense Android",
+  "description": "Smart waste management system optimized for mobile devices with geolocation and real-time AI analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
