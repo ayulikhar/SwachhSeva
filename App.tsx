@@ -12,7 +12,7 @@ const App: React.FC = () => {
 
   const handleNewReport = (report: WasteReport) => {
     setReports(prev => [report, ...prev]);
-    setActiveTab('map'); // Switch to map after capture to see the new pin
+    setActiveTab('map');
   };
 
   const renderContent = () => {
@@ -43,12 +43,12 @@ const App: React.FC = () => {
             <div className="bg-emerald-700 text-white p-6 rounded-2xl shadow-lg">
               <h3 className="text-lg font-bold mb-2">City Contribution</h3>
               <p className="text-sm opacity-90 leading-relaxed">
-                Your reports have helped identify {reports.length} potential hazard sites this week. Keep cleaning our city!
+                Your reports have helped identify {reports.length} potential hazard sites this week.
               </p>
               <div className="mt-4 h-2 bg-white/20 rounded-full overflow-hidden">
                 <div className="h-full bg-white w-2/3"></div>
               </div>
-              <p className="text-[10px] mt-2 font-medium opacity-75">GOAL: 50 REPORTS BY FRIDAY</p>
+              <p className="text-[10px] mt-2 font-medium opacity-75 uppercase">Goal: 50 Reports</p>
             </div>
             
             <div className="space-y-4">

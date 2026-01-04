@@ -16,6 +16,7 @@ export const MapView: React.FC<Props> = ({ reports }) => {
   const userMarkerRef = useRef<any>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [filter, setFilter] = useState<Severity | 'ALL'>('ALL');
 
   // Function to get and set user location
   const updateLocation = (centerMap = false) => {
@@ -45,8 +46,7 @@ export const MapView: React.FC<Props> = ({ reports }) => {
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Default to a reasonable view (world or last report)
-    const startPos = reports.length > 0 && reports[0].location 
+    const startPos: [number, number] = reports.length > 0 && reports[0].location 
       ? [reports[0].location.lat, reports[0].location.lng] 
       : [0, 0];
 
@@ -57,14 +57,11 @@ export const MapView: React.FC<Props> = ({ reports }) => {
       attributionControl: false
     });
 
-    // High-quality clean tiles
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 20
     }).addTo(map);
 
     mapInstanceRef.current = map;
-    
-    // Initial location grab
     updateLocation();
 
     return () => {
@@ -75,7 +72,7 @@ export const MapView: React.FC<Props> = ({ reports }) => {
     };
   }, []);
 
-  // Update User Marker when location changes
+  // Update User Marker
   useEffect(() => {
     if (!mapInstanceRef.current || !userLocation) return;
 
@@ -98,12 +95,12 @@ export const MapView: React.FC<Props> = ({ reports }) => {
 
       userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
         icon: userIcon,
-        zIndexOffset: 1000 // Always on top
+        zIndexOffset: 1000
       }).addTo(map);
     }
   }, [userLocation]);
 
-  // Update Waste Markers
+  // Update Waste Markers based on filter
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
@@ -111,7 +108,11 @@ export const MapView: React.FC<Props> = ({ reports }) => {
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
-    reports.forEach(report => {
+    const filteredReports = filter === 'ALL' 
+      ? reports 
+      : reports.filter(r => r.result.severity === filter);
+
+    filteredReports.forEach(report => {
       if (!report.location) return;
 
       const color = report.result.severity === Severity.HIGH ? '#E11D48' : 
@@ -119,9 +120,7 @@ export const MapView: React.FC<Props> = ({ reports }) => {
 
       const customIcon = L.divIcon({
         className: 'waste-marker',
-        html: `
-          <div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.2);"></div>
-        `,
+        html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.2);"></div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12]
       });
@@ -141,33 +140,56 @@ export const MapView: React.FC<Props> = ({ reports }) => {
       marker.bindPopup(popupContent, { maxWidth: 200, className: 'eco-popup' });
       markersRef.current.push(marker);
     });
-  }, [reports]);
+  }, [reports, filter]);
+
+  const mapStyles = `
+    .leaflet-container { background: #f8fafc !important; }
+    .eco-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; }
+    .eco-popup .leaflet-popup-content { margin: 0; width: 180px !important; }
+    .user-location-marker { pointer-events: none; }
+  `;
 
   return (
     <div className="relative w-full h-[calc(100vh-3.5rem-4rem)] bg-slate-100 overflow-hidden">
       <div ref={mapContainerRef} className="w-full h-full z-0" />
       
-      {/* Legend Overlay */}
-      <div className="absolute top-4 left-4 right-4 bg-white/80 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-white/50 flex justify-around items-center z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-rose-600"></div>
-          <span className="text-[10px] font-bold text-slate-600 uppercase">High</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-          <span className="text-[10px] font-bold text-slate-600 uppercase">Mid</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-          <span className="text-[10px] font-bold text-slate-600 uppercase">Low</span>
+      <div className="absolute top-4 left-4 right-4 z-10 flex flex-col gap-2">
+        <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-white/50 flex items-center justify-between overflow-hidden">
+          <button 
+            onClick={() => setFilter('ALL')}
+            className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${filter === 'ALL' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            All
+          </button>
+          <button 
+            onClick={() => setFilter(Severity.HIGH)}
+            className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${filter === Severity.HIGH ? 'bg-rose-600 text-white shadow-md' : 'text-rose-600 hover:bg-rose-50'}`}
+          >
+            <div className={`w-2 h-2 rounded-full bg-current ${filter === Severity.HIGH ? 'animate-pulse' : ''}`}></div>
+            High
+          </button>
+          <button 
+            onClick={() => setFilter(Severity.MEDIUM)}
+            className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${filter === Severity.MEDIUM ? 'bg-amber-500 text-white shadow-md' : 'text-amber-600 hover:bg-amber-50'}`}
+          >
+            <div className="w-2 h-2 rounded-full bg-current"></div>
+            Mid
+          </button>
+          <button 
+            onClick={() => setFilter(Severity.LOW)}
+            className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${filter === Severity.LOW ? 'bg-emerald-500 text-white shadow-md' : 'text-emerald-600 hover:bg-emerald-50'}`}
+          >
+            <div className="w-2 h-2 rounded-full bg-current"></div>
+            Low
+          </button>
         </div>
       </div>
 
-      {/* Locate Me FAB */}
       <button 
         onClick={() => updateLocation(true)}
         disabled={isLocating}
-        className={`absolute bottom-6 right-6 w-14 h-14 bg-white text-slate-700 rounded-full shadow-2xl flex items-center justify-center z-20 active:scale-90 transition-all border border-slate-100 ${isLocating ? 'opacity-50' : 'opacity-100'}`}
+        className={`absolute bottom-6 right-6 w-14 h-14 bg-white text-slate-700 rounded-full shadow-2xl flex items-center justify-center z-20 active:scale-90 transition-all border border-slate-100 ${isLocating ? 'opacity-50' : 'opacity-100 hover:bg-slate-50'}`}
+        title="Find My Location"
       >
         <svg className={`w-6 h-6 ${isLocating ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -175,11 +197,7 @@ export const MapView: React.FC<Props> = ({ reports }) => {
         </svg>
       </button>
 
-      <style>{`
-        .leaflet-container { background: #f8fafc !important; }
-        .eco-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; }
-        .eco-popup .leaflet-popup-content { margin: 0; width: 180px !important; }
-      `}</style>
+      <style dangerouslySetInnerHTML={{ __html: mapStyles }} />
     </div>
   );
 };

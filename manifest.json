@@ -1,7 +1,7 @@
 
 {
-  "name": "EcoSense Waste Analyzer",
-  "short_name": "EcoSense",
+  "name": "SwachhSeva Waste Analyzer",
+  "short_name": "SwachhSeva",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f8fafc",
