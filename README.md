@@ -1,4 +1,4 @@
-♻️ **SwachhSeva**
+## ♻️SwachhSeva
 
 AI-Powered Smart Waste Management System
 
