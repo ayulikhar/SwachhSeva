@@ -1,6 +1,6 @@
 ## ♻️SwachhSeva
 
-**AI-Powered Smart Waste Management System**
+**AI-Powered Smart Waste Report System**
 
 SwachhSeva is a real-time, AI-enabled waste monitoring platform that helps identify and prioritize roadside garbage using image analysis and geospatial intelligence. The system enables citizen-driven reporting and supports authorities with actionable insights for efficient waste management.
 ## Run Locally
