@@ -26,6 +26,7 @@ export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
   const pickerMapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const userDotRef = useRef<any>(null);
 
   useEffect(() => {
     if (isCameraActive && videoRef.current && streamRef.current) {
@@ -141,29 +142,66 @@ export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
       const initMap = async () => {
         const defaultLoc = await getLocation() || { lat: 0, lng: 0 };
         setPickerLocation(defaultLoc);
+        
         const map = L.map(pickerMapRef.current, {
           center: [defaultLoc.lat, defaultLoc.lng],
-          zoom: 16,
+          zoom: 17,
           zoomControl: false,
           attributionControl: false
         });
+        
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
-        const icon = L.divIcon({
-          className: 'custom-div-icon',
-          html: '<div style="background-color: #059669; width: 24px; height: 24px; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></div>',
+
+        // 1. User Location Blue Dot (Fixed/Static indication of current position)
+        const userIcon = L.divIcon({
+          className: 'user-location-marker',
+          html: `
+            <div class="relative flex items-center justify-center">
+              <div class="absolute w-6 h-6 bg-blue-500 rounded-full opacity-30 animate-ping"></div>
+              <div class="w-3 h-3 bg-blue-600 rounded-full border-2 border-white shadow-lg z-10"></div>
+            </div>
+          `,
           iconSize: [24, 24],
           iconAnchor: [12, 12]
         });
-        const marker = L.marker([defaultLoc.lat, defaultLoc.lng], { icon, draggable: true }).addTo(map);
+        userDotRef.current = L.marker([defaultLoc.lat, defaultLoc.lng], { icon: userIcon, zIndexOffset: 500 }).addTo(map);
+
+        // 2. Draggable Pin Icon for manual selection
+        const pinIcon = L.divIcon({
+          className: 'manual-pin-marker',
+          html: `
+            <div class="flex flex-col items-center">
+              <div class="w-10 h-10 bg-emerald-600 rounded-full border-4 border-white shadow-xl flex items-center justify-center -translate-y-4">
+                <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <div class="w-1 h-2 bg-emerald-600 -mt-4 shadow-sm"></div>
+            </div>
+          `,
+          iconSize: [40, 48],
+          iconAnchor: [20, 48]
+        });
+
+        const marker = L.marker([defaultLoc.lat, defaultLoc.lng], { 
+          icon: pinIcon, 
+          draggable: true,
+          zIndexOffset: 1000 
+        }).addTo(map);
+        
         markerRef.current = marker;
+
         marker.on('dragend', () => {
           const pos = marker.getLatLng();
           setPickerLocation({ lat: pos.lat, lng: pos.lng });
         });
+
         map.on('click', (e: any) => {
           marker.setLatLng(e.latlng);
           setPickerLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
         });
+
         mapInstanceRef.current = map;
       };
       initMap();
@@ -172,6 +210,8 @@ export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
       if (!showMapPicker && mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
+        markerRef.current = null;
+        userDotRef.current = null;
       }
     };
   }, [showMapPicker]);
@@ -182,6 +222,7 @@ export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
       100% { transform: translateX(100%); }
     }
     .animate-loading { animation: loading-anim 1.5s ease-in-out infinite; }
+    .user-location-marker { pointer-events: none; }
   `;
 
   return (
@@ -277,7 +318,10 @@ export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
             ) : (
               <div className="flex flex-col h-[550px]">
                 <div className="p-5 bg-white border-b border-slate-100 flex items-center justify-between">
-                  <h4 className="font-black text-slate-800 text-lg">Pin Location</h4>
+                  <div>
+                    <h4 className="font-black text-slate-800 text-lg">Pin Location</h4>
+                    <p className="text-[10px] text-emerald-600 uppercase font-black tracking-widest">DRAG PIN TO TARGET SPOT</p>
+                  </div>
                   <button onClick={() => setShowMapPicker(false)} className="p-3 bg-slate-50 rounded-xl text-slate-400"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                 </div>
                 <div ref={pickerMapRef} className="flex-grow bg-slate-100" />

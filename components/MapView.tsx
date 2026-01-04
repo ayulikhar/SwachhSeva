@@ -9,14 +9,19 @@ interface Props {
   reports: WasteReport[];
 }
 
+type MapLayerType = 'standard' | 'satellite';
+
 export const MapView: React.FC<Props> = ({ reports }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null);
+  const baseLayersRef = useRef<{ [key in MapLayerType]?: any }>({});
+  
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [filter, setFilter] = useState<Severity | 'ALL'>('ALL');
+  const [layerType, setLayerType] = useState<MapLayerType>('standard');
 
   // Function to get and set user location
   const updateLocation = (centerMap = false) => {
@@ -48,18 +53,27 @@ export const MapView: React.FC<Props> = ({ reports }) => {
 
     const startPos: [number, number] = reports.length > 0 && reports[0].location 
       ? [reports[0].location.lat, reports[0].location.lng] 
-      : [0, 0];
+      : [20.5937, 78.9629]; // Default center (India) if no reports
 
     const map = L.map(mapContainerRef.current, {
       center: startPos,
-      zoom: reports.length > 0 ? 13 : 2,
+      zoom: reports.length > 0 ? 13 : 5,
       zoomControl: false, 
       attributionControl: false
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // Define base layers
+    baseLayersRef.current.standard = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 20
-    }).addTo(map);
+    });
+
+    baseLayersRef.current.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri'
+    });
+
+    // Add initial layer
+    baseLayersRef.current.standard.addTo(map);
 
     mapInstanceRef.current = map;
     updateLocation();
@@ -71,6 +85,22 @@ export const MapView: React.FC<Props> = ({ reports }) => {
       }
     };
   }, []);
+
+  // Effect to switch base layers
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    
+    // Remove all base layers
+    Object.values(baseLayersRef.current).forEach((layer: any) => {
+      if (map.hasLayer(layer)) map.removeLayer(layer);
+    });
+
+    // Add selected layer
+    if (baseLayersRef.current[layerType]) {
+      baseLayersRef.current[layerType].addTo(map);
+    }
+  }, [layerType]);
 
   // Update User Marker
   useEffect(() => {
@@ -143,7 +173,7 @@ export const MapView: React.FC<Props> = ({ reports }) => {
   }, [reports, filter]);
 
   const mapStyles = `
-    .leaflet-container { background: #f8fafc !important; }
+    .leaflet-container { background: ${layerType === 'satellite' ? '#1a202c' : '#f8fafc'} !important; }
     .eco-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; }
     .eco-popup .leaflet-popup-content { margin: 0; width: 180px !important; }
     .user-location-marker { pointer-events: none; }
@@ -153,6 +183,7 @@ export const MapView: React.FC<Props> = ({ reports }) => {
     <div className="relative w-full h-[calc(100vh-3.5rem-4rem)] bg-slate-100 overflow-hidden">
       <div ref={mapContainerRef} className="w-full h-full z-0" />
       
+      {/* Top Filter Control */}
       <div className="absolute top-4 left-4 right-4 z-10 flex flex-col gap-2">
         <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-white/50 flex items-center justify-between overflow-hidden">
           <button 
@@ -185,6 +216,34 @@ export const MapView: React.FC<Props> = ({ reports }) => {
         </div>
       </div>
 
+      {/* Layer Switcher (Bottom Left) */}
+      <div className="absolute bottom-6 left-6 z-20 flex flex-col gap-3">
+        <button 
+          onClick={() => setLayerType(layerType === 'standard' ? 'satellite' : 'standard')}
+          className="w-14 h-14 bg-white text-slate-700 rounded-2xl shadow-2xl flex flex-col items-center justify-center active:scale-90 transition-all border border-slate-100 overflow-hidden group"
+          title="Switch Map Style"
+        >
+          <div className="relative w-full h-full flex items-center justify-center">
+             {layerType === 'standard' ? (
+                <div className="flex flex-col items-center">
+                  <svg className="w-6 h-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h1.5a2.5 2.5 0 012.5 2.5V17m-6 5c-5.523 0-10-4.477-10-10s4.477-10 10-10 10 4.477 10 10-4.477 10-10 10z" />
+                  </svg>
+                  <span className="text-[8px] font-black uppercase tracking-tighter">Satellite</span>
+                </div>
+             ) : (
+                <div className="flex flex-col items-center">
+                  <svg className="w-6 h-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7l5-2.5 5.553 2.776a1 1 0 01.447.894v10.764a1 1 0 01-1.447.894L14 17l-5 3z" />
+                  </svg>
+                  <span className="text-[8px] font-black uppercase tracking-tighter">Standard</span>
+                </div>
+             )}
+          </div>
+        </button>
+      </div>
+
+      {/* Locate Me FAB (Bottom Right) */}
       <button 
         onClick={() => updateLocation(true)}
         disabled={isLocating}
