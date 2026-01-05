@@ -1,7 +1,9 @@
-
+import "D:/Files/SwachhSeva/SwachhPath/index.css";
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import "leaflet/dist/leaflet.css";
+import { MapContainer, TileLayer } from "react-leaflet";
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

@@ -1,9 +1,8 @@
-
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import React, { useEffect, useRef, useState } from 'react';
 import { WasteReport, Severity } from '../types';
 
-// Declare L for Leaflet global
-declare const L: any;
 
 interface Props {
   reports: WasteReport[];
