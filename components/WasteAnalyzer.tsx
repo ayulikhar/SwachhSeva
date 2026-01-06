@@ -26,7 +26,6 @@ export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
   const pickerMapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
-  const userDotRef = useRef<any>(null);
 
   useEffect(() => {
     if (isCameraActive && videoRef.current && streamRef.current) {
@@ -140,209 +139,151 @@ export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
   useEffect(() => {
     if (showMapPicker && pickerMapRef.current && !mapInstanceRef.current) {
       const initMap = async () => {
-        const defaultLoc = await getLocation() || { lat: 0, lng: 0 };
+        const defaultLoc = await getLocation() || { lat: 20.5937, lng: 78.9629 };
         setPickerLocation(defaultLoc);
-        
         const map = L.map(pickerMapRef.current, {
           center: [defaultLoc.lat, defaultLoc.lng],
           zoom: 17,
           zoomControl: false,
           attributionControl: false
         });
-        
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-        const userIcon = L.divIcon({
-          className: 'user-location-marker',
-          html: `
-            <div class="relative flex items-center justify-center">
-              <div class="absolute w-6 h-6 bg-blue-500 rounded-full opacity-30 animate-ping"></div>
-              <div class="w-3 h-3 bg-blue-600 rounded-full border-2 border-white shadow-lg z-10"></div>
-            </div>
-          `,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
-        });
-        userDotRef.current = L.marker([defaultLoc.lat, defaultLoc.lng], { icon: userIcon, zIndexOffset: 500 }).addTo(map);
-
         const pinIcon = L.divIcon({
           className: 'manual-pin-marker',
-          html: `
-            <div class="flex flex-col items-center">
-              <div class="w-10 h-10 bg-emerald-600 rounded-full border-4 border-white shadow-xl flex items-center justify-center -translate-y-4">
-                <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <div class="w-1 h-2 bg-emerald-600 -mt-4 shadow-sm"></div>
-            </div>
-          `,
-          iconSize: [40, 48],
-          iconAnchor: [20, 48]
+          html: `<div class="bg-emerald-600 w-8 h-8 rounded-full border-4 border-white shadow-lg"></div>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
         });
-
-        const marker = L.marker([defaultLoc.lat, defaultLoc.lng], { 
-          icon: pinIcon, 
-          draggable: true,
-          zIndexOffset: 1000 
-        }).addTo(map);
-        
+        const marker = L.marker([defaultLoc.lat, defaultLoc.lng], { icon: pinIcon, draggable: true }).addTo(map);
         markerRef.current = marker;
-
         marker.on('dragend', () => {
           const pos = marker.getLatLng();
           setPickerLocation({ lat: pos.lat, lng: pos.lng });
         });
-
-        map.on('click', (e: any) => {
-          marker.setLatLng(e.latlng);
-          setPickerLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
-        });
-
         mapInstanceRef.current = map;
       };
       initMap();
     }
-    return () => {
-      if (!showMapPicker && mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-        markerRef.current = null;
-        userDotRef.current = null;
-      }
-    };
   }, [showMapPicker]);
 
-  const analyzerStyles = `
-    @keyframes loading-anim {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(100%); }
-    }
-    .animate-loading { animation: loading-anim 1.5s ease-in-out infinite; }
-    .user-location-marker { pointer-events: none; }
-    
-    .analyzer-container {
-      height: calc(100vh - env(safe-area-inset-bottom));
-      width: 100%;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-  `;
-
   return (
-    <div className="analyzer-container flex flex-col bg-slate-50 overflow-hidden">
-      <style dangerouslySetInnerHTML={{ __html: analyzerStyles }} />
-      
-      <div className="flex-grow relative w-full h-full overflow-hidden">
-        {isCameraActive ? (
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-        ) : previewUrl ? (
-          <img src={previewUrl} className="w-full h-full object-cover" alt="Captured Waste" />
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 px-8 text-center animate-in fade-in duration-1000">
-            <div className="relative mb-12">
-               <div className="absolute inset-0 bg-emerald-500/10 rounded-full blur-3xl animate-pulse"></div>
-               <div className="relative w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-[0_20px_60px_rgba(0,0,0,0.08)] border border-slate-100">
-                  <svg className="w-16 h-16 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <circle cx="12" cy="13" r="3" strokeWidth={1} />
-                  </svg>
-               </div>
+    <div className="h-full w-full bg-slate-50 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      {/* Content wrapper - forced vertical alignment and centering */}
+      <div className={`relative flex flex-col items-center w-full transition-all duration-700 ${isCameraActive ? 'max-w-4xl h-full sm:h-auto aspect-video bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl ring-1 ring-slate-800' : 'max-w-xl'}`}>
+        
+        {/* Main Display Viewport */}
+        <div className="relative w-full flex flex-col items-center justify-center">
+          {isCameraActive ? (
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+          ) : previewUrl ? (
+            <img src={previewUrl} className="w-full object-cover rounded-[3rem] shadow-2xl" alt="Captured Waste" />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center animate-in fade-in duration-1000">
+               <div className="relative mb-6 sm:mb-10">
+                 <div className="absolute inset-0 bg-emerald-500/10 rounded-full blur-[60px] animate-pulse"></div>
+                 <div className="relative w-28 h-28 sm:w-40 sm:h-40 bg-white rounded-[2.5rem] sm:rounded-[3.5rem] flex items-center justify-center shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] border border-slate-100 transition-all duration-500 transform hover:scale-105">
+                    <svg className="w-16 h-16 sm:w-24 sm:h-24 text-emerald-600 overflow-visible" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={1.2} 
+                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" 
+                      />
+                      <circle cx="12" cy="13" r="3" strokeWidth={1.2} />
+                    </svg>
+                 </div>
+              </div>
+              <h1 className="text-3xl sm:text-5xl font-black text-slate-800 tracking-tight mb-4">Ready to Scan</h1>
+              <p className="text-slate-400 font-medium leading-relaxed max-w-sm text-sm sm:text-lg mb-8 sm:mb-10">
+                Report roadside waste clusters with AI. Automated sanitation routing starts with a single snap.
+              </p>
             </div>
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight mb-4">Ready to Scan</h1>
-            <p className="text-slate-500 font-medium leading-relaxed max-w-xs">
-              Keep your neighborhood clean. Snap a photo of waste to report it for pickup.
-            </p>
-            
-            <div className="mt-16 text-center opacity-30 select-none">
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">v2.5 Protocol</p>
-            </div>
-          </div>
-        )}
+          )}
 
-        {isAnalyzing && (
-          <div className="absolute inset-0 bg-emerald-950/80 backdrop-blur-xl flex flex-col items-center justify-center text-white p-8 z-[60] animate-in fade-in duration-300">
-            <div className="relative mb-8">
-              <div className="w-24 h-24 border-[6px] border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin"></div>
+          {/* Neural Scan Overlay */}
+          {isAnalyzing && (
+            <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-3xl flex flex-col items-center justify-center text-white z-[60] animate-in fade-in duration-300">
+              <div className="relative w-28 h-28 sm:w-36 sm:h-36 mb-10">
+                <div className="absolute inset-0 border-[6px] border-emerald-500/10 rounded-full"></div>
+                <div className="absolute inset-0 border-[6px] border-t-emerald-400 rounded-full animate-spin"></div>
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-black tracking-tighter mb-3 uppercase italic">Analyzing Site</h3>
+              <p className="text-[11px] font-black tracking-[0.5em] text-emerald-400/80 uppercase">Computing Hygiene Risk Index</p>
             </div>
-            <h3 className="text-2xl font-black mb-2 tracking-tight">ANALYZING</h3>
-            <div className="h-1 w-32 bg-emerald-400/20 rounded-full overflow-hidden">
-              <div className="h-full bg-emerald-400 animate-loading"></div>
-            </div>
-            <p className="mt-4 text-xs font-bold uppercase tracking-widest text-emerald-400/60">Processing Neural Nets</p>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Action Controls - Integrated into the central stack */}
+        <div className={`w-full max-w-md ${isCameraActive ? 'absolute bottom-8 left-0 right-0 px-8 z-40' : ''}`}>
+           {!isCameraActive && !previewUrl && !isAnalyzing && (
+              <div className="flex items-center gap-4 sm:gap-6 animate-in slide-in-from-bottom-8 duration-700">
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-16 h-16 sm:w-20 sm:h-20 bg-white text-slate-500 rounded-3xl flex items-center justify-center active:scale-90 transition-all shadow-[0_12px_40px_-8px_rgba(0,0,0,0.06)] border border-slate-100 hover:bg-slate-50 hover:text-slate-800"
+                  title="Upload Image"
+                >
+                  <svg className="w-8 h-8 sm:w-9 sm:h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01" />
+                  </svg>
+                </button>
+                <button 
+                  onClick={startCamera}
+                  className="flex-grow py-5 sm:py-7 bg-emerald-600 text-white rounded-3xl font-black shadow-[0_24px_48px_-12px_rgba(16,185,129,0.35)] active:scale-95 hover:bg-emerald-500 transition-all flex items-center justify-center uppercase tracking-[0.15em] text-sm sm:text-base"
+                >
+                  Launch Scanner
+                </button>
+              </div>
+           )}
+
+           {isCameraActive && (
+              <div className="flex items-center justify-between animate-in slide-in-from-bottom-10">
+                 <button onClick={stopCamera} className="w-14 h-14 sm:w-16 sm:h-16 bg-white/10 backdrop-blur-xl rounded-full flex items-center justify-center text-white border border-white/20 hover:bg-white/20 transition-colors">
+                    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6" /></svg>
+                 </button>
+                 <button onClick={capturePhoto} className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-full p-2 shadow-2xl active:scale-90 transition-transform group">
+                    <div className="w-full h-full rounded-full border-4 border-slate-100 flex items-center justify-center group-hover:border-slate-300 transition-colors">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-emerald-500 rounded-full shadow-inner"></div>
+                    </div>
+                 </button>
+                 <div className="w-14 h-14 sm:w-16 sm:h-16 opacity-0" />
+              </div>
+           )}
+        </div>
       </div>
 
       <canvas ref={canvasRef} className="hidden" />
       <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileUpload} />
 
-      <div className="fixed bottom-32 left-0 right-0 px-6 z-50 pointer-events-none">
-        <div className="max-w-md mx-auto flex items-center justify-center gap-4 pointer-events-auto">
-          {!isCameraActive && !previewUrl && !isAnalyzing && (
-            <>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-16 h-16 bg-white text-slate-600 rounded-2xl shadow-xl flex items-center justify-center active:scale-90 transition-all border border-slate-100"
-                aria-label="Upload photo"
-              >
-                <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </button>
-
-              <button 
-                onClick={startCamera}
-                className="flex-grow py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-xl active:scale-95 transition-all flex items-center justify-center uppercase tracking-widest text-sm"
-              >
-                Start Scan
-              </button>
-            </>
-          )}
-
-          {isCameraActive && (
-            <div className="flex items-center gap-10 animate-in slide-in-from-bottom-10 duration-500">
-               <button onClick={stopCamera} className="w-14 h-14 bg-black/40 backdrop-blur-xl rounded-full flex items-center justify-center text-white border border-white/20">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-               </button>
-               <button onClick={capturePhoto} className="w-20 h-20 bg-white rounded-full p-1 shadow-2xl active:scale-90 transition-transform">
-                  <div className="w-full h-full rounded-full border-4 border-slate-100 flex items-center justify-center">
-                    <div className="w-14 h-14 bg-emerald-500 rounded-full"></div>
-                  </div>
-               </button>
-               <div className="w-14 h-14 opacity-0 pointer-events-none"></div>
-            </div>
-          )}
-        </div>
-      </div>
-
+      {/* Location Confirmation Modal */}
       {showLocationModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-2xl">
+          <div className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/10">
             {!showMapPicker ? (
-              <div className="p-8">
-                <h3 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Tag Location</h3>
-                <p className="text-slate-500 text-sm mb-8 font-medium">Where was this photo taken?</p>
+              <div className="p-10 sm:p-14 space-y-8">
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-emerald-600">
+                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-3xl font-black text-slate-800 mb-2">Tag Location</h3>
+                  <p className="text-slate-400 text-sm font-medium leading-relaxed">Please verify where this report was taken.</p>
+                </div>
                 <div className="flex flex-col gap-4">
-                  <button onClick={() => pendingImage && handleAnalysis(pendingImage)} className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all">Use My GPS</button>
-                  <button onClick={() => setShowMapPicker(true)} className="w-full py-5 bg-slate-100 text-slate-700 rounded-2xl font-black active:scale-95 transition-all">Pin Manually</button>
-                  <button onClick={() => { setShowLocationModal(false); setPendingImage(null); setPreviewUrl(null); }} className="mt-2 py-2 text-slate-400 font-bold text-xs uppercase tracking-widest">Discard</button>
+                  <button onClick={() => pendingImage && handleAnalysis(pendingImage)} className="w-full py-6 bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-50 active:scale-95 transition-all">My Current Position</button>
+                  <button onClick={() => setShowMapPicker(true)} className="w-full py-6 bg-slate-100 text-slate-700 rounded-2xl font-black active:scale-95 transition-all">Pick From Map</button>
+                  <button onClick={() => { setShowLocationModal(false); setPendingImage(null); setPreviewUrl(null); }} className="pt-2 text-slate-400 font-bold text-[11px] uppercase tracking-widest hover:text-rose-500 text-center transition-colors">Discard and Cancel</button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col h-[550px]">
-                <div className="p-5 bg-white border-b border-slate-100 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-black text-slate-800 text-lg">Pin Location</h4>
-                    <p className="text-[10px] text-emerald-600 uppercase font-black tracking-widest">DRAG PIN TO SPOT</p>
-                  </div>
-                  <button onClick={() => setShowMapPicker(false)} className="p-3 bg-slate-50 rounded-xl text-slate-400"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+              <div className="flex flex-col h-[600px] max-h-[85vh]">
+                <div className="p-8 border-b border-slate-50 flex items-center justify-between">
+                  <h4 className="font-black text-xl text-slate-800 tracking-tight">Manual Pinpoint</h4>
+                  <button onClick={() => setShowMapPicker(false)} className="w-12 h-12 bg-slate-50 rounded-2xl text-slate-400 flex items-center justify-center hover:bg-slate-100 transition-colors">×</button>
                 </div>
-                <div ref={pickerMapRef} className="flex-grow bg-slate-100" />
-                <div className="p-6 bg-white border-t border-slate-50">
-                  <button onClick={() => pendingImage && pickerLocation && handleAnalysis(pendingImage, pickerLocation)} className="w-full py-5 bg-emerald-600 text-white rounded-[1.5rem] font-black active:scale-95 transition-all">Confirm Location</button>
+                <div ref={pickerMapRef} className="flex-grow bg-slate-50" />
+                <div className="p-10">
+                  <button onClick={() => pendingImage && pickerLocation && handleAnalysis(pendingImage, pickerLocation)} className="w-full py-6 bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-50">Confirm Site Position</button>
                 </div>
               </div>
             )}
@@ -351,11 +292,15 @@ export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
       )}
 
       {error && (
-        <div className="fixed top-20 left-6 right-6 z-[70] p-4 bg-rose-50 text-rose-700 rounded-2xl flex items-center gap-3 border border-rose-200 shadow-lg animate-in slide-in-from-top-4">
-          <span className="text-sm font-bold">{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto text-rose-400">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+        <div className="fixed bottom-10 right-10 left-10 md:left-auto md:w-96 z-[70] p-6 bg-white text-rose-600 rounded-[2rem] border border-rose-50 shadow-[0_30px_60px_-12px_rgba(225,29,72,0.15)] flex items-center gap-5 animate-in slide-in-from-right-10">
+          <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center shrink-0">
+             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4" /></svg>
+          </div>
+          <div className="flex-grow">
+            <p className="text-xs font-black uppercase tracking-widest text-rose-400 mb-0.5">System Error</p>
+            <p className="text-sm font-bold text-slate-700">{error}</p>
+          </div>
+          <button onClick={() => setError(null)} className="text-slate-300 hover:text-slate-500 text-2xl font-light px-2">×</button>
         </div>
       )}
     </div>
