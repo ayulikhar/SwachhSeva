@@ -1,0 +1,39 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SwachhSeva - Mobile Waste Analyzer</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet Maps CSS -->
+    <style>
+        body { 
+            font-family: 'Roboto', sans-serif; 
+            overscroll-behavior-y: contain;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+        
+        /* Custom Leaflet Popup Styling */
+        .leaflet-popup-content-wrapper {
+            border-radius: 16px !important;
+            padding: 0 !important;
+            overflow: hidden;
+        }
+        .leaflet-popup-content {
+            margin: 0 !important;
+            width: 200px !important;
+        }
+    </style>
+    <!-- Leaflet Maps JS -->
+</head>
+<body class="bg-slate-50 text-slate-900 selection:bg-emerald-100">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
