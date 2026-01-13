@@ -1,0 +1,16 @@
+
+{
+  "name": "SwachhSeva Waste Analyzer",
+  "short_name": "SwachhSeva",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3299/3299935.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
