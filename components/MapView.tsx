@@ -1,268 +1,233 @@
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import React, { useEffect, useRef, useState } from "react";
-import { analyzeWasteImage } from "../services/geminiService";
-import { Severity, WasteReport } from "../types";
-
-declare const L: any;
+import { WasteReport, Severity } from "../types";
+import { Layers, Navigation } from "lucide-react";
 
 interface Props {
-  onNewReport: (report: WasteReport) => void;
+  reports: WasteReport[];
 }
 
-export const WasteAnalyzer: React.FC<Props> = ({ onNewReport }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+type MapLayerType = "standard" | "satellite";
+type FilterType = Severity | "ALL";
 
-  const pickerMapRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+export const MapView: React.FC<Props> = ({ reports }) => {
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<L.Marker[]>([]);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const baseLayersRef = useRef<Record<MapLayerType, L.TileLayer>>({} as any);
 
-  const [isCameraOn, setIsCameraOn] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [filter, setFilter] = useState<FilterType>("ALL");
+  const [layerType, setLayerType] = useState<MapLayerType>("standard");
+  const [isLocating, setIsLocating] = useState(false);
 
-  const [preview, setPreview] = useState<string | null>(null);
-  const [pendingImage, setPendingImage] = useState<string | null>(null);
-
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const [showMapPicker, setShowMapPicker] = useState(false);
-  const [manualLocation, setManualLocation] = useState<{ lat: number; lng: number } | null>(null);
-
-  /* ================= CAMERA ================= */
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false
-      });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setIsCameraOn(true);
-    } catch {
-      setError("Camera access denied.");
-    }
-  };
-
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-    setIsCameraOn(false);
-  };
-
+  /* ================= INIT MAP ================= */
   useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const initialCenter: [number, number] =
+      reports[0]?.location
+        ? [reports[0].location.lat, reports[0].location.lng]
+        : [20.5937, 78.9629]; // India default
+
+    const map = L.map(mapContainerRef.current, {
+      center: initialCenter,
+      zoom: reports.length ? 13 : 5,
+      zoomControl: false,
+      attributionControl: false
+    });
+
+    baseLayersRef.current.standard = L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      { maxZoom: 20 }
+    );
+
+    baseLayersRef.current.satellite = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19 }
+    );
+
+    baseLayersRef.current.standard.addTo(map);
+    mapRef.current = map;
+
+    locateUser();
+
     return () => {
-      stopCamera();
-      mapRef.current?.remove();
+      map.remove();
+      mapRef.current = null;
     };
   }, []);
 
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
+  /* ================= USER LOCATION ================= */
+  const locateUser = (center = false) => {
+    if (!navigator.geolocation) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    setIsLocating(true);
 
-    const ctx = canvas.getContext("2d");
-    ctx?.drawImage(video, 0, 0);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(loc);
+        setIsLocating(false);
 
-    const image = canvas.toDataURL("image/jpeg", 0.85);
-    setPreview(image);
-    setPendingImage(image);
-    stopCamera();
-    setShowLocationModal(true);
+        if (center && mapRef.current) {
+          mapRef.current.flyTo([loc.lat, loc.lng], 16, { duration: 1.2 });
+        }
+      },
+      () => setIsLocating(false),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
   };
 
-  /* ================= FILE UPLOAD ================= */
+  /* ================= USER MARKER ================= */
+  useEffect(() => {
+    if (!mapRef.current || !userLocation) return;
 
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+      return;
+    }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = reader.result as string;
-      setPreview(img);
-      setPendingImage(img);
-      setShowLocationModal(true);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  /* ================= LOCATION ================= */
-
-  const getCurrentLocation = (): Promise<{ lat: number; lng: number } | undefined> =>
-    new Promise(resolve => {
-      navigator.geolocation?.getCurrentPosition(
-        p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-        () => resolve(undefined),
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
+    const icon = L.divIcon({
+      html: `
+        <div class="relative">
+          <div class="absolute w-8 h-8 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
+          <div class="w-4 h-4 bg-blue-600 rounded-full border-2 border-white shadow-md"></div>
+        </div>
+      `,
+      className: "",
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
     });
 
-  /* ================= ANALYSIS ================= */
+    userMarkerRef.current = L.marker(
+      [userLocation.lat, userLocation.lng],
+      { icon, zIndexOffset: 1000 }
+    ).addTo(mapRef.current);
+  }, [userLocation]);
 
-  const runAnalysis = async (image: string, location?: { lat: number; lng: number }) => {
-    setIsAnalyzing(true);
-    setShowLocationModal(false);
-
-    try {
-      const base64 = image.split(",")[1];
-      const result = await analyzeWasteImage(base64, "image/jpeg");
-      const report: WasteReport = {
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        image,
-        result,
-        location: location || (await getCurrentLocation())
-      };
-      onNewReport(report);
-      setPreview(null);
-      setPendingImage(null);
-    } catch {
-      setError("AI analysis failed. Try again.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  /* ================= MAP PICKER ================= */
-
+  /* ================= BASE LAYER SWITCH ================= */
   useEffect(() => {
-    if (!showMapPicker || !pickerMapRef.current || mapRef.current) return;
+    if (!mapRef.current) return;
 
-    (async () => {
-      const loc = (await getCurrentLocation()) || { lat: 20.5937, lng: 78.9629 };
-      setManualLocation(loc);
+    Object.values(baseLayersRef.current).forEach(layer => {
+      if (mapRef.current!.hasLayer(layer)) {
+        mapRef.current!.removeLayer(layer);
+      }
+    });
 
-      const map = L.map(pickerMapRef.current, {
-        center: [loc.lat, loc.lng],
-        zoom: 17,
-        zoomControl: false,
-        attributionControl: false
+    baseLayersRef.current[layerType].addTo(mapRef.current);
+  }, [layerType]);
+
+  /* ================= REPORT MARKERS ================= */
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
+
+    const visibleReports =
+      filter === "ALL"
+        ? reports
+        : reports.filter(r => r.result.severity === filter);
+
+    visibleReports.forEach(report => {
+      if (!report.location) return;
+
+      const color =
+        report.result.severity === Severity.HIGH
+          ? "#E11D48"
+          : report.result.severity === Severity.MEDIUM
+          ? "#F59E0B"
+          : "#10B981";
+
+      const icon = L.divIcon({
+        html: `<div style="
+          background:${color};
+          width:22px;
+          height:22px;
+          border-radius:50%;
+          border:3px solid white;
+          box-shadow:0 4px 10px rgba(0,0,0,.25)
+        "></div>`,
+        className: "",
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
       });
 
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
+      const marker = L.marker(
+        [report.location.lat, report.location.lng],
+        { icon }
+      ).addTo(mapRef.current!);
 
-      const marker = L.marker([loc.lat, loc.lng], { draggable: true }).addTo(map);
-      marker.on("dragend", () => {
-        const p = marker.getLatLng();
-        setManualLocation({ lat: p.lat, lng: p.lng });
-      });
+      marker.bindPopup(`
+        <div class="overflow-hidden rounded-xl">
+          <img src="${report.image}" class="w-full h-24 object-cover"/>
+          <div class="p-2">
+            <p class="text-[10px] font-black uppercase text-slate-400 mb-1">
+              ${report.result.severity} urgency
+            </p>
+            <p class="text-xs text-slate-700">
+              ${report.result.reason}
+            </p>
+          </div>
+        </div>
+      `);
 
-      mapRef.current = map;
-      markerRef.current = marker;
-    })();
-  }, [showMapPicker]);
+      markersRef.current.push(marker);
+    });
+  }, [reports, filter]);
 
-  /* ================= UI ================= */
-
+  /* ================= RENDER ================= */
   return (
-    <div className="w-full flex justify-center">
-      <div className="w-full max-w-xl space-y-8">
+    <div className="min-h-screen bg-bg pb-safe">
+      <div className="relative w-full h-[70vh] md:h-[75vh] rounded-2xl overflow-hidden bg-slate-100 mx-auto max-w-md">
+        <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" />
 
-        {/* CAMERA / PREVIEW */}
-        <div className="relative rounded-3xl overflow-hidden bg-slate-100 shadow-lg">
-          {isCameraOn ? (
-            <video ref={videoRef} autoPlay playsInline className="w-full h-[55vh] object-cover" />
-          ) : preview ? (
-            <img src={preview} className="w-full h-[55vh] object-cover" />
-          ) : (
-            <div className="h-[45vh] flex flex-col items-center justify-center text-center px-6">
-              <h1 className="text-3xl font-black text-slate-800 mb-3">Ready to Scan</h1>
-              <p className="text-slate-500">Capture or upload a waste image</p>
-            </div>
-          )}
-
-          {isAnalyzing && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white">
-              <div className="w-16 h-16 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mb-4" />
-              <p className="font-black tracking-widest text-sm">ANALYZING</p>
-            </div>
-          )}
+        {/* FILTER */}
+        <div className="absolute top-4 left-4 right-4 z-20">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-1 flex shadow-medium border border-primary-100">
+            {["ALL", Severity.HIGH, Severity.MEDIUM, Severity.LOW].map(level => (
+              <button
+                key={level}
+                onClick={() => setFilter(level as FilterType)}
+                className={`flex-1 px-3 py-2 text-[10px] font-black uppercase rounded-xl transition-all duration-200
+                  ${filter === level
+                    ? "bg-primary-600 text-white shadow-soft"
+                    : "text-slate-500 hover:bg-primary-50 hover:text-primary-600"
+                  }`}
+              >
+                {level === "ALL" ? "All" : level}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* ACTIONS */}
-        {!isCameraOn && !preview && (
-          <div className="flex gap-4">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex-1 py-4 bg-white rounded-2xl shadow border font-bold"
-            >
-              Upload
-            </button>
-            <button
-              onClick={startCamera}
-              className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black"
-            >
-              Camera
-            </button>
-          </div>
-        )}
+        {/* MAP STYLE */}
+        <button
+          onClick={() =>
+            setLayerType(layerType === "standard" ? "satellite" : "standard")
+          }
+          className="absolute bottom-6 left-6 z-20 w-14 h-14 rounded-2xl bg-white shadow-large flex items-center justify-center hover:scale-110 transition-all duration-200 border border-primary-100"
+        >
+          <Layers className="w-6 h-6 text-primary-600" />
+        </button>
 
-        {isCameraOn && (
-          <div className="flex justify-between px-4">
-            <button onClick={stopCamera} className="text-slate-500 font-bold">Cancel</button>
-            <button onClick={capturePhoto} className="w-20 h-20 bg-white rounded-full shadow-xl" />
-            <div className="w-10" />
-          </div>
-        )}
-
-        <canvas ref={canvasRef} className="hidden" />
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+        {/* LOCATE */}
+        <button
+          onClick={() => locateUser(true)}
+          disabled={isLocating}
+          className="absolute bottom-6 right-6 z-20 w-14 h-14 rounded-2xl bg-gradient-primary shadow-large flex items-center justify-center hover:scale-110 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Navigation
+            className={`w-6 h-6 text-white ${
+              isLocating ? "animate-spin" : ""
+            }`}
+          />
+        </button>
       </div>
-
-      {/* LOCATION MODAL */}
-      {showLocationModal && pendingImage && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 space-y-4">
-            {!showMapPicker ? (
-              <>
-                <h3 className="text-xl font-black text-center">Confirm Location</h3>
-                <button
-                  onClick={() => runAnalysis(pendingImage)}
-                  className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black"
-                >
-                  Use Current Location
-                </button>
-                <button
-                  onClick={() => setShowMapPicker(true)}
-                  className="w-full py-4 bg-slate-100 rounded-xl font-bold"
-                >
-                  Pick on Map
-                </button>
-                <button
-                  onClick={() => setShowLocationModal(false)}
-                  className="block w-full text-center text-slate-400 text-sm"
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <>
-                <div ref={pickerMapRef} className="h-64 rounded-xl overflow-hidden" />
-                <button
-                  onClick={() => manualLocation && runAnalysis(pendingImage, manualLocation)}
-                  className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black"
-                >
-                  Confirm Location
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ERROR */}
-      {error && (
-        <div className="fixed bottom-6 left-6 right-6 md:left-auto md:w-96 bg-white p-4 rounded-xl shadow-lg border text-rose-600 z-50">
-          <p className="font-bold">{error}</p>
-          <button onClick={() => setError(null)} className="mt-2 text-sm text-slate-400">Dismiss</button>
-        </div>
-      )}
     </div>
   );
 };
